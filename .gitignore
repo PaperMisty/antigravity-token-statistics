@@ -1,0 +1,65 @@
+# Python 编译与缓存
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+share/python-wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+
+# 虚拟环境
+.venv/
+venv/
+ENV/
+env/
+env.bak/
+venv.bak/
+
+# 敏感与数据文件 (避免将海量个人 Token 明细与数据库上传至公共仓库)
+.env
+.env.*
+*.csv
+*.json
+*.sqlite
+*.sqlite3
+*.db
+*.db-shm
+*.db-wal
+.mcp.json
+
+# 编辑器与 IDE
+.vscode/
+.idea/
+*.sublime-project
+*.sublime-workspace
+
+# 日志与临时调试产物
+*.log
+*.tmp
+*.bak
+scratch/
+
+# 系统生成文件
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+Desktop.ini
