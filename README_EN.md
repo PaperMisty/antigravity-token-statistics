@@ -40,7 +40,7 @@ This tool requires zero heavyweight external services or database servers. It ac
   ┌─────────────────────────────────────────────────────────────┐
   │         1. Adaptive Cross-Platform / Machine Discovery      │
   │   Windows: C:\Users\*\.gemini\antigravity-ide\conversations │
-  │   WSL2:    \\wsl.localhost\<distro>\root & home\*\.gemini   │
+  │   WSL2:    Sub-millisecond Registry discovery + UNC paths   │
   └──────────────────────────────┬──────────────────────────────┘
                                  │
                                  ▼
@@ -61,7 +61,15 @@ This tool requires zero heavyweight external services or database servers. It ac
                                  │
                                  ▼
   ┌─────────────────────────────────────────────────────────────┐
-  │         4. Multi-Dimensional Aggregation & Dashboard Render │
+  │         4. ⚡ Dual-Fingerprint Incremental Cache (15x+ Boost) │
+  │   Verifies composite (mtime, size) fingerprints per DB      │
+  │   - Bypasses decoding for unmodified historical sessions    │
+  │   - Incrementally syncs freshly written active sessions     │
+  └──────────────────────────────┬──────────────────────────────┘
+                                 │
+                                 ▼
+  ┌─────────────────────────────────────────────────────────────┐
+  │         5. Multi-Dimensional Aggregation & Dashboard Render │
   │   Generates Antigravity_Token_Dashboard.html and launches   │
   │   the system default browser automatically                  │
   └─────────────────────────────────────────────────────────────┘
