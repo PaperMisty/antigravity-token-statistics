@@ -1,52 +1,143 @@
 # 📊 Antigravity Token 统计与多维度可视化分析器
 
-一个专为 **Google Antigravity**（Antigravity IDE 与 Antigravity CLI）打造的高性能、多维度 Token 消耗统计、深度分析与现代化交互式仪表盘工具。
+一个专为 **Google Antigravity**（Antigravity IDE 与 Antigravity CLI）打造的高性能、轻量级 Token 消耗统计、深度分析与现代化交互式仪表盘工具。
 
-支持从本地会话数据库中高效提取全量模型调用元数据，提供模型分布、时间走势、会话排行、提示词细分、运行环境分布及交互式 HTML 仪表盘在内的全方位数据洞察。
+支持从本地会话数据库中高效提取全量模型调用元数据，提供模型分布、时间走势、年度贡献热力图、交互式 HTML 仪表盘与结构化 Markdown 报告在内的全方位数据洞察。
 
 ---
 
-## ✨ 核心亮点与特色
+## 📸 交互式仪表盘预览
 
-### 1. 🎨 考究的视觉美学与黄金比例布局
-- **左右对称并排网格**：
-  - 针对原单行热力图两侧空白过多进行了专门的审美重构；
-  - 将 **🍩 各模型 Token 消耗环形图** 优雅置于 **🔥 GitHub 风格贡献热力图** 左侧（比例约 `360px : 1fr`），高度协调匀称，消弭无用留白，兼具数据密度与呼吸感。
-- **📈 全宽通栏横向舒展走势图**：
-  - “每日 Token 消耗走势与细分统计”作为独立全宽大卡片展开，横向拉长展现宽广视野；
-  - 几十天乃至上百天的日期走势从容舒展，柱体清晰、间距适中，具备金融监控看板级的质感。
-- **双主题无缝切换（记忆偏好）**：
-  - **☀️ 暖阳米黄（默认）**：舒缓柔和的羊皮纸浅米色调（`#fcf8f0`）搭配高雅琥珀金主色，温润防疲劳；
-  - **🌙 极客暗黑（可选）**：深邃 Slate 暗蓝灰（`#0b1120`）极客风格搭配科技冰蓝高亮；
-  - 自动通过 `localStorage` 记忆用户的主题选择，图表网格与文字自适应换色。
+仪表盘采用单文件自包含设计，自动适配机型与屏幕比例，支持一键切换主题与工具视图：
 
-### 2. 🔥 GitHub 风格年度贡献热力图 (Heatmap)
-- 经典 52/53 周矩阵布局，遵循 GitHub 原生规范设计；
-- 自适应当前主题的 5 级色阶渲染（0~4 级）；
-- 支持多年度年份快速切换筛选（如 `2026年`、`2025年`）；
-- 鼠标悬停（Hover）实时浮出毛玻璃 Tooltip，精准显示具体日期、当日消耗总 Token 及交互轮次。
+### 1. ☀️ 暖阳米黄风格（默认）
+适合日间办公与长时间数据查阅，舒缓温润不刺眼：
 
-### 3. 🔍 强大的走势图双维度筛选与实时求和
-- **日期范围筛选**：快捷预设胶囊（7天、14天、近30天、60天、90天、全部） + 精准起止日期选择器联动；
-- **模型列表下拉多选**：带独立勾选框与全选/清空按钮，支持任意模型组合分析；
-- **实时求和统计卡片栏**：根据选定日期与模型实时动态重新汇总：
-  - 所选范围总消耗（带中文人类友好单位，如 `约 4.52 亿 Tokens`）；
-  - 上下文缓存命中读取及准确命中率；
-  - 未缓存直接输入总量及占比；
-  - 模型生成输出总量（含深度思维链思考 Token 细分及占比）；
-  - 交互调用总轮次与日均消耗。
+![暖阳米黄仪表盘预览](assets/dashboard_preview.png)
 
-### 4. 🖥️ 跨环境与跨机型完全自适应扫描
-- **跨机型兼容**：彻底移除特定硬件/用户名的硬编码，自动获取当前环境与系统全部用户目录，各类电脑机型无缝开箱即用；
-- **WSL2 自动穿透扫描**：智能探测宿主机安装的所有 WSL 发行版（如 Ubuntu、Debian 等），扫描 `/root` 和 `/home/*` 下的 Antigravity 会话；
-- **SQLite 只读不可变优化**：采用 `immutable=1` 模式连接数据库，彻底解决跨 Windows 与 WSL 网络文件系统（9P/virtio-fs）时的文件锁与并发阻塞问题。
+### 2. 🌙 极客暗黑风格（可选）
+深邃 Slate 暗蓝灰搭配科技高光，图表色彩自适应换色并支持本地持久化记忆：
 
-### 5. 🚀 工具类型分类洞察 (IDE vs CLI)
-- 自动识别会话来源是 **Antigravity IDE** 还是 **Antigravity CLI**；
-- 页面顶层提供直观的工具切换胶囊栏，一键切换全局数据视图。
+![极客暗黑仪表盘预览](assets/dashboard_preview_dark.png)
 
-### 6. 🌐 一键运行自动唤起浏览器
-- 统计执行完成后，自动调用系统默认浏览器弹出新标签页打开交互式仪表盘，无需用户手动寻找路径。
+### 核心功能概览
+- **顶层全局切换**：一键在 `全部工具 (All)`、`Antigravity IDE` 与 `Antigravity CLI` 之间切换，全图联动；支持双主题记忆切换。
+- **对称黄金比例网格**：左侧各模型消耗环形图与右侧 GitHub 风格年度贡献热力图（52周矩阵+鼠标悬浮浮窗）紧凑并排，告别空白冗余。
+- **全宽通栏走势图**：全宽横向拉长展示每日消耗，集成日期快捷胶囊、任意起止日选择器、模型下拉多选以及**实时动态求和统计卡片**。
+- **深度指标明细表**：清晰展示 Windows vs WSL2 环境分布，以及各模型的上下文缓存命中率、思考 Token（Thinking Tokens）与响应耗时。
+
+---
+
+## ⚙️ 技术实现原理
+
+本项目无需任何重量级外部服务，通过底层文件协议与二进制解码技术，实现秒级高可靠的数据提取与统计分析。
+
+```
+  ┌─────────────────────────────────────────────────────────────┐
+  │                 1. 跨平台/跨机型自适应扫描探测                     │
+  │   Windows: C:\Users\*\.gemini\antigravity-ide\conversations\*.db │
+  │   WSL2:    \\wsl.localhost\<distro>\root & home\*\.gemini\*.db  │
+  └──────────────────────────────┬──────────────────────────────┘
+                                 │
+                                 ▼
+  ┌─────────────────────────────────────────────────────────────┐
+  │                 2. SQLite 无锁只读接入 (I/O 安全)             │
+  │         URI: file:{db_path}?mode=ro&immutable=1             │
+  │         - 规避 WSL2 9P/virtio-fs 虚拟文件系统锁挂死              │
+  │         - 避免与正在运行的 Antigravity IDE 产生写锁冲突          │
+  └──────────────────────────────┬──────────────────────────────┘
+                                 │
+                                 ▼
+  ┌─────────────────────────────────────────────────────────────┐
+  │                 3. 自研原生 Protobuf 二进制解码               │
+  │   解析 gen_metadata 表中的二进制 blob 数据                     │
+  │   - Wire Type 0 (Varint) / Wire Type 2 (Length-delimited)   │
+  │   - 零 .proto 文件编译，原生提取 Token、思考量、缓存量、模型等   │
+  └──────────────────────────────┬──────────────────────────────┘
+                                 │
+                                 ▼
+  ┌─────────────────────────────────────────────────────────────┐
+  │                 4. 多维数据聚合与单文件仪表盘渲染              │
+  │   输出 Antigravity_Token_Dashboard.html 并自动唤起浏览器展示     │
+  └─────────────────────────────────────────────────────────────┘
+```
+
+### 1. 扫描哪些目录（自适应跨平台定位）
+工具摒弃了任何特定主机名或用户名的硬编码，无论用户使用何种电脑机型，均能全自动发现：
+- **Windows 本地环境**：
+  - 当前用户目录：`~/.gemini`、`~/.antigravity`
+  - 全局用户驱动盘自适应扫描：枚举 `%SystemDrive%\Users` 下所有真实用户的 `.gemini/antigravity-ide/conversations/*.db` 及 CLI 相关目录。
+- **WSL2 子系统环境**：
+  - 自动调用 `wsl.exe -l -q`（采用 UTF-16-LE 容错解码规避 Windows 控制台乱码），枚举所有已安装的 Linux 发行版（如 Ubuntu、Debian、Arch 等）；
+  - 通过 Windows 原生 UNC 网络路径穿透扫描：`\\wsl.localhost\<distro>\root\.gemini\antigravity-ide\conversations\*.db` 以及 `\\wsl.localhost\<distro>\home\<user>\.gemini\...`，无需在 WSL 内部部署额外代理。
+
+### 2. 怎么读取的（无锁安全并发读取）
+在读取 Antigravity 本地 SQLite 会话数据库时，必须保证既不干扰正在运行的 IDE，又不能被系统文件锁挂死：
+- **SQLite 只读不可变 URI 模式**：
+  ```python
+  uri = f"file:{norm_path}?mode=ro&immutable=1"
+  conn = sqlite3.connect(uri, uri=True)
+  ```
+- **核心原理解析**：
+  - `mode=ro`：以纯只读模式打开，杜绝误写；
+  - `immutable=1`：通知 SQLite 内核底层文件在连接生命周期内视为只读不可变，**SQLite 将彻底放弃尝试获取 POSIX / Windows 文件锁，并且绝不会创建或检查 `-shm`（共享内存）与 `-wal`（预写日志）临时文件**；
+  - **解决痛点**：彻底根治了跨 Windows 和 WSL2 虚拟网络文件系统（9P/virtio-fs）访问时极其容易触发的 `database is locked`、`disk I/O error` 或主线程死锁假死问题。
+
+### 3. 怎么解析的（自研纯 Python Protobuf 二进制解码）
+Antigravity 会话的核心调用明细存储在数据库的 `gen_metadata` 数据表中，其记录内容以 Protocol Buffers 二进制序列化存储：
+- **无需 `.proto` 定义文件的原生解码** (`proto_decoder.py`)：
+  - 官方 Protobuf 结构属于内部私有格式，且引入 Google 官方 `protobuf` 编译器会带来繁重的第三方依赖；
+  - 本项目内置轻量级二进制解析器，严格遵循 Google Protocol Buffers Wire Format 标准规范；
+  - 基于**变长整数 (Varint)** 解码算法还原字段序号 (`field_num`) 与传输类型 (`wire_type`)；
+  - 递归遍历 Wire Type 2（Length-delimited）嵌层消息，直接对二进制字节流进行结构化下钻。
+- **精准提取字段**：
+  - 模型标识：`gemini-3.8-flash`、`gemini-2.5-pro` 等；
+  - 提示词细分：直接输入未缓存 Token (`prompt_tokens`)、系统提示词与工具调用占比；
+  - 上下文缓存命中：`cached_content_token_count`，精准计算缓存节省率；
+  - 模型生成输出：`candidates_token_count`，并细分提炼出思维链思考 Token (`thinking_token_count`)；
+  - 耗时与时间戳：精准提取调用开始/结束毫秒级时间戳，统计平均生成延迟与历史时间序列。
+
+### 4. 所需依赖包清单（零外部重量级依赖）
+整个项目崇尚**极简、轻量、开箱即用**的设计哲学：
+- **Python 运行端**：**100% 纯 Python 3.8+ 标准库**，无需 `pip install` 任何第三方包！
+  - `sqlite3`：高性能本地会话数据库查询（带 URI 扩展）；
+  - `json`：多维度数据汇总与前端结构序列化；
+  - `os`, `sys`, `pathlib`：跨平台路径归一化处理；
+  - `subprocess`：跨系统探测 WSL2 发行版；
+  - `datetime`, `time`：时间戳运算与日期矩阵生成；
+  - `re`：模型标识与路径文本解析；
+  - `webbrowser`：分析完成后自动弹出系统浏览器呈现结果。
+- **可视化仪表盘端**：
+  - 单文件 HTML 原生架构（Vanilla HTML/CSS/JavaScript），无 Webpack/Vite 等 Node.js 构建负担；
+  - 仅引入轻量开源 CDN `Chart.js`（用于高效绘制矢量环形图与柱状图）；
+  - 完全脱机离线可用，生成的 HTML 文件直接双击或分享即可在任何浏览器渲染。
+
+---
+
+## 🚀 快速开始
+
+### 1. 运行环境
+- 操作系统：Windows 11 / 10、Linux 或 macOS
+- Python 环境：Python 3.8 及以上（推荐 Python 3.12，支持使用 `uv` 或系统 `python`）
+
+### 2. 执行分析与展示
+
+在终端直接运行：
+
+```bash
+# 使用标准 Python 运行
+python export_report.py
+
+# 或使用 uv 极速运行
+uv run export_report.py
+```
+
+执行后程序将全自动：
+1. 探测并扫描本机所有 Windows 与 WSL2 会话库；
+2. 提取全量会话与模型调用的 Token 元数据并全局去重；
+3. 生成全量深度 Markdown 报告 `Antigravity_Token_Report.md`；
+4. 生成交互式单文件仪表盘 `Antigravity_Token_Dashboard.html`；
+5. **自动启动系统默认浏览器**，直接展现精美交互看板。
 
 ---
 
@@ -54,58 +145,21 @@
 
 ```text
 Antigravity_token_stat/
-├── token_analyzer.py             # 核心数据库跨环境扫描与元数据提取器
-├── export_report.py              # 多维度统计聚合引擎与 HTML/Markdown 报告生成器
-├── proto_decoder.py              # Protobuf 二进制元数据解析模块
-├── Antigravity_Token_Dashboard.html # 生成的可视化交互式仪表盘 (单文件离线可用)
-├── Antigravity_Token_Report.md   # 生成的结构化多维度深度分析报告
-├── .gitignore                    # Git 忽略配置
-└── README.md                     # 项目说明文档
+├── token_analyzer.py             # 核心数据库跨环境自适应扫描与数据抽取器
+├── proto_decoder.py              # 自研 Protobuf 二进制元数据递归解码模块
+├── export_report.py              # 多维统计聚合引擎与 HTML/Markdown 报告生成器
+├── Antigravity_Token_Dashboard.html # 生成的高性能可视化交互式仪表盘 (单文件)
+├── Antigravity_Token_Report.md   # 生成的结构化分析报告
+├── assets/                       # 仪表盘双主题高清预览截图
+│   ├── dashboard_preview.png     # 暖阳米黄主题预览
+│   └── dashboard_preview_dark.png # 极客暗黑主题预览
+├── .gitignore                    # Git 忽略规则
+└── README.md                     # 项目技术架构与说明文档
 ```
-
----
-
-## 🚀 快速开始
-
-### 1. 环境依赖
-- 建议环境：Windows 11 / 10 或 Linux / macOS
-- Python 3.8+ (推荐 Python 3.12，支持使用 `uv` 或 `pip` 管理)
-- 依赖轻量极简，无复杂第三方重量级依赖。
-
-### 2. 运行统计
-
-在项目根目录下直接运行：
-
-```bash
-# 使用标准 python
-python export_report.py
-
-# 或使用 uv 极速运行
-uv run export_report.py
-```
-
-执行后将自动完成：
-1. 自动探测并扫描所有 Antigravity 会话数据库；
-2. 提取全量会话与模型调用的 Token 元数据并进行全局去重；
-3. 输出终端统计摘要；
-4. 导出全量结构化 Markdown 报告（`Antigravity_Token_Report.md`）；
-5. 导出高度交互的现代化 HTML 仪表盘（`Antigravity_Token_Dashboard.html`）；
-6. 自动启动系统默认浏览器加载仪表盘。
-
----
-
-## 📊 仪表盘板块展示
-
-| 区域板块 | 布局与功能 |
-| :--- | :--- |
-| **顶层切换栏** | 支持 `全部工具 (All)` / `Antigravity IDE` / `Antigravity CLI` 一键切换，并附带双主题切换开关 |
-| **KPI 宏观指标** | 累计总消耗 Token、上下文缓存命中率、交互总轮次、模型平均响应耗时 |
-| **第一行并排图表** | **左侧**：各模型 Token 消耗占比环形图；<br>**右侧**：GitHub Heatmap 风格年度贡献热力图（含年份切换与悬停提示） |
-| **第二行通栏图表** | **每日 Token 消耗走势与细分统计**（全宽拉长展示，支持多维度日期胶囊、模型下拉多选和实时动态求和卡片） |
-| **环境与模型明细表** | Windows vs WSL2 运行环境分布表、模型调用全量明细总览表（千分位大数、缓存率、延迟、思考Token） |
 
 ---
 
 ## 📄 许可证
 
 [MIT License](LICENSE)
+
