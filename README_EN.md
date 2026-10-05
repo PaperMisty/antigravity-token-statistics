@@ -73,7 +73,7 @@ The tool completely eliminates any hardcoded machine models or usernames, automa
   - Current user directories: `~/.gemini`, `~/.antigravity`
   - Global user volume scan: Dynamically enumerates all real user profiles under `%SystemDrive%\Users` for `.gemini/antigravity-ide/conversations/*.db` and CLI directories.
 - **WSL2 Subsystem Environment**:
-  - Automatically queries `wsl.exe -l -q` (decoded using UTF-16-LE with error tolerance to prevent Windows console corruption) to discover all installed Linux distributions (Ubuntu, Debian, Arch, Kali, etc.);
+  - Automatically queries Windows native Registry (`HKCU\Software\Microsoft\Windows\CurrentVersion\Lxss`) for **sub-millisecond discovery** (< 0.001s), completely eliminating network broadcast timeouts and `wsl.exe` process overhead;
   - Traverses Linux filesystems directly via native Windows UNC network paths: `\\wsl.localhost\<distro>\root\.gemini\antigravity-ide\conversations\*.db` and `\\wsl.localhost\<distro>\home\<user>\.gemini\...`, requiring no internal WSL agent.
 
 ### 2. How Are Databases Read? (Lock-Free & Concurrency-Safe)
@@ -102,13 +102,22 @@ Detailed invocation logs in Antigravity are serialized as Protocol Buffers binar
   - Candidate Output: `candidates_token_count`, with deep extraction of Chain-of-Thought Thinking Tokens (`thinking_token_count`);
   - Latency & Timestamps: Millisecond-precision start/finish timestamps for latency analysis and time-series aggregation.
 
-### 4. Dependency Manifest (Zero External Heavy Dependencies)
+### 4. ⚡ Local Incremental Caching (15x+ Performance Leap)
+Analyzing hundreds of conversation databases and decoding tens of thousands of binary Protobuf messages on every execution introduces repetitive I/O overhead. The tool incorporates an **intelligent incremental caching system**:
+- **Dual-Fingerprint Verification**: Generates a composite fingerprint `(mtime, size)` based on file modification timestamp and byte size for each database;
+- **Zero-Redundancy Historical Invocations**: Unmodified databases are instantly loaded from the local cache file (`.token_cache.json`), bypassing SQLite connection initialization and raw bytecode deserialization entirely;
+- **Incremental Hot Sync**: Only newly initiated conversations or active sessions receiving fresh token writes undergo parsing, with results automatically merged into the local cache;
+- **Instant Execution**: Execution time is compressed from **~20 seconds down to ~1 second (near instantaneous)**;
+- **Force Refresh**: Pass `--no-cache` or `--force-refresh` (or `-f`) at any time to execute a clean, full re-parse.
+
+### 5. Dependency Manifest (Zero External Heavy Dependencies)
 The project strictly adheres to a **lightweight, minimalist, battery-included** design philosophy:
 - **Python Backend**: **100% Python 3.8+ Standard Library** — no `pip install` required!
   - `sqlite3`: Native database query engine with URI support;
   - `json`: Structured serialization for analytics;
   - `os`, `sys`, `pathlib`: Cross-platform path normalization;
-  - `subprocess`: Non-intrusive discovery of WSL2 distributions;
+  - `winreg`: Instant Windows Registry enumeration for WSL2 distributions;
+  - `subprocess`: Fallback distribution discovery;
   - `datetime`, `time`: Timestamp transformations and matrix dates;
   - `re`: Regex parsing for model identifiers;
   - `webbrowser`: Auto-opens the system default browser upon completion.

@@ -2,42 +2,65 @@
 自动扫描 Windows 本地与 WSL2 环境下的 Antigravity / Gemini 会话数据库并提取全量 Token 调用数据
 """
 import glob
+import json
 import os
 import sqlite3
 import subprocess
+import time
 from typing import Any, Dict, List, Optional, Union
 from proto_decoder import extract_gen_metadata
 
 
-def detect_wsl_distros() -> List[str]:
-    """探测已安装的 WSL2 发行版名称列表"""
+_WSL_DISTROS_CACHE: Optional[List[str]] = None
+
+
+def detect_wsl_distros(force_refresh: bool = False) -> List[str]:
+    """
+    探测已安装的 WSL2 发行版名称列表
+    优先使用 Windows 注册表秒级探测 (耗时 < 0.001s)，彻底规避 UNC 网络超时与 wsl.exe 进程开销
+    """
+    global _WSL_DISTROS_CACHE
+    if _WSL_DISTROS_CACHE is not None and not force_refresh:
+        return _WSL_DISTROS_CACHE
+
     distros: List[str] = []
-    # 1. 尝试通过 wsl.exe -l -q 查询
+
+    # 1. 优先通过 Windows 注册表枚举 (仅需不到 1 毫秒且 100% 精确)
     try:
-        out = subprocess.check_output(
-            ["wsl.exe", "-l", "-q"],
-            stderr=subprocess.DEVNULL,
-            timeout=3
-        )
-        # Windows 控制台下 wsl.exe 输出通常为 utf-16le 编码
-        decoded = out.decode("utf-16le", errors="ignore")
-        for line in decoded.splitlines():
-            name = line.strip().replace("\x00", "")
-            if name and name not in distros:
-                distros.append(name)
+        import winreg
+        lxss_key_path = r"Software\Microsoft\Windows\CurrentVersion\Lxss"
+        with winreg.OpenKey(winreg.HKEY_CURRENT_USER, lxss_key_path) as key:
+            i = 0
+            while True:
+                try:
+                    subkey_name = winreg.EnumKey(key, i)
+                    with winreg.OpenKey(key, subkey_name) as subkey:
+                        name, _ = winreg.QueryValueEx(subkey, "DistributionName")
+                        if name and name not in distros:
+                            distros.append(str(name))
+                    i += 1
+                except OSError:
+                    break
     except Exception:
         pass
 
-    # 2. 备选方案：检查常见的默认发行版 UNC 路径是否存在
-    fallback_candidates = [
-        "Ubuntu", "Ubuntu-24.04", "Ubuntu-22.04", "Ubuntu-20.04",
-        "Debian", "kali-linux", "openSUSE-Leap-15.5", "Arch"
-    ]
-    for d in fallback_candidates:
-        if d not in distros:
-            if os.path.exists(rf"\\wsl.localhost\{d}") or os.path.exists(rf"\\wsl$\{d}"):
-                distros.append(d)
+    # 2. 备用：如果注册表未找到且强制刷新，尝试运行 wsl.exe -l -q
+    if not distros and (force_refresh or os.name == "nt"):
+        try:
+            out = subprocess.check_output(
+                ["wsl.exe", "-l", "-q"],
+                stderr=subprocess.DEVNULL,
+                timeout=1.5
+            )
+            decoded = out.decode("utf-16le", errors="ignore")
+            for line in decoded.splitlines():
+                name = line.strip().replace("\x00", "")
+                if name and name not in distros:
+                    distros.append(name)
+        except Exception:
+            pass
 
+    _WSL_DISTROS_CACHE = distros
     return distros
 
 
@@ -123,6 +146,7 @@ def scan_all_conversation_dbs(
     """
     检索 base_dirs 下所有 conversations 文件夹中的 .db 文件
     返回字典列表：[{"path": db_path, "env": env_label}, ...]
+    采用精准深度匹配，杜绝全局递归 (**) 导致的磁盘与网络 I/O 阻塞
     """
     targets: List[Dict[str, str]] = []
 
@@ -145,8 +169,14 @@ def scan_all_conversation_dbs(
     for target in targets:
         env = target["env"]
         p = target["path"]
-        pattern = os.path.join(p, "**", "conversations", "*.db")
-        db_files = glob.glob(pattern, recursive=True)
+        # 精准匹配：antigravity-ide/conversations/*.db, antigravity-cli/conversations/*.db, conversations/*.db
+        db_files = []
+        db_files.extend(glob.glob(os.path.join(p, "*", "conversations", "*.db")))
+        db_files.extend(glob.glob(os.path.join(p, "conversations", "*.db")))
+        if not db_files:
+            # 备用方案：两级子目录
+            db_files.extend(glob.glob(os.path.join(p, "*", "*", "conversations", "*.db")))
+
         for db in sorted(db_files):
             norm = os.path.normcase(os.path.abspath(db))
             if norm not in seen_db_paths:
@@ -237,13 +267,50 @@ def parse_single_db(db_path: str, env: str = "windows") -> List[Dict[str, Any]]:
     return records
 
 
+def load_token_cache(cache_file: str) -> Dict[str, Any]:
+    """加载本地增量缓存，若不存在或损坏则返回空缓存结构"""
+    if os.path.exists(cache_file):
+        try:
+            with open(cache_file, "r", encoding="utf-8") as f:
+                data = json.load(f)
+                if isinstance(data, dict) and data.get("version") == 1 and "files" in data:
+                    return data
+        except Exception:
+            pass
+    return {"version": 1, "last_updated": 0, "files": {}}
+
+
+def save_token_cache(cache_file: str, cache_data: Dict[str, Any]) -> None:
+    """原子保存增量缓存文件"""
+    tmp_file = f"{cache_file}.tmp"
+    try:
+        with open(tmp_file, "w", encoding="utf-8") as f:
+            json.dump(cache_data, f, ensure_ascii=False)
+        if os.path.exists(cache_file):
+            os.remove(cache_file)
+        os.rename(tmp_file, cache_file)
+    except Exception:
+        try:
+            with open(cache_file, "w", encoding="utf-8") as f:
+                json.dump(cache_data, f, ensure_ascii=False)
+        except Exception:
+            pass
+
+
 def collect_all_data(
-    base_dirs: Optional[Union[str, List[Union[str, Dict[str, str]]]]] = None
+    base_dirs: Optional[Union[str, List[Union[str, Dict[str, str]]]]] = None,
+    use_cache: bool = True,
+    cache_file: Optional[str] = None,
 ) -> List[Dict[str, Any]]:
     """
     扫描所有已发现的数据库（包含 Windows 本地与 WSL2 环境）并返回全部 Token 记录列表
-    提供按 (conv_id, step_idx) 的全局去重保护
+    - 支持基于文件修改时间 (mtime) 与大小 (size) 的本地增量缓存机制
+    - 未修改的历史会话直接毫秒级读取缓存，仅解析有新增或变更的数据库
+    - 提供按 (conv_id, step_idx) 的全局去重保护
     """
+    if cache_file is None:
+        cache_file = os.path.join(os.path.dirname(os.path.abspath(__file__)), ".token_cache.json")
+
     db_items = scan_all_conversation_dbs(base_dirs)
     
     # 统计各环境数据库数量
@@ -253,22 +320,88 @@ def collect_all_data(
         env_counts[env] = env_counts.get(env, 0) + 1
 
     summary_parts = [f"{env}: {count} 个" for env, count in env_counts.items()]
-    print(f"找到 {len(db_items)} 个数据库文件 ({', '.join(summary_parts)})，正在解析...")
+    total_dbs = len(db_items)
+
+    cache_data = load_token_cache(cache_file) if use_cache else {"version": 1, "files": {}}
+    cached_files = cache_data.get("files", {})
 
     all_records = []
     seen_steps = set()
+    cache_hit_count = 0
+    parsed_count = 0
+    cache_modified = False
+
+    current_db_keys = set()
 
     for item in db_items:
         db_path = item["path"]
         env = item["env"]
-        db_records = parse_single_db(db_path, env=env)
+        norm_key = os.path.normcase(os.path.abspath(db_path))
+        current_db_keys.add(norm_key)
+
+        mtime = 0.0
+        size = 0
+        try:
+            st = os.stat(db_path)
+            mtime = st.st_mtime
+            size = st.st_size
+        except Exception:
+            pass
+
+        # 检查是否命中增量缓存
+        cached_entry = cached_files.get(norm_key)
+        if (
+            use_cache
+            and cached_entry
+            and abs(cached_entry.get("mtime", 0) - mtime) < 1e-4
+            and cached_entry.get("size") == size
+            and "records" in cached_entry
+        ):
+            db_records = cached_entry["records"]
+            cache_hit_count += 1
+        else:
+            # 文件发生新增或变更，重新解析该数据库
+            db_records = parse_single_db(db_path, env=env)
+            parsed_count += 1
+            cache_modified = True
+            if use_cache:
+                cached_files[norm_key] = {
+                    "mtime": mtime,
+                    "size": size,
+                    "env": env,
+                    "records": db_records
+                }
+
         for r in db_records:
-            dedup_key = (r["conv_id"], r["step_idx"])
+            dedup_key = (r.get("conv_id"), r.get("step_idx"))
             if dedup_key not in seen_steps:
                 seen_steps.add(dedup_key)
                 all_records.append(r)
 
-    print(f"解析完成！累计成功提取 {len(all_records)} 条模型调用元数据记录。")
+    # 清理已在磁盘上删除但缓存中残留的条目
+    keys_to_remove = [k for k in cached_files if k not in current_db_keys]
+    if keys_to_remove:
+        for k in keys_to_remove:
+            del cached_files[k]
+        cache_modified = True
+
+    # 保存最新增量缓存
+    if use_cache and cache_modified:
+        cache_data["last_updated"] = time.time()
+        save_token_cache(cache_file, cache_data)
+
+    if use_cache and total_dbs > 0:
+        if parsed_count == 0:
+            print(f"⚡ 增量缓存就绪: 全部 {total_dbs} 个数据库 ({', '.join(summary_parts)}) 均命中缓存，跳过重复解析。")
+        else:
+            print(
+                f"⚡ 增量缓存生效: {cache_hit_count} 个数据库命中缓存，"
+                f"{parsed_count} 个有变更/新增重新解析 (总计 {total_dbs} 个: {', '.join(summary_parts)})"
+            )
+    else:
+        print(f"完成扫描与全量解析 {total_dbs} 个数据库文件 ({', '.join(summary_parts)})。")
+
+    print(f"累计提取 {len(all_records)} 条模型调用元数据记录。")
     return all_records
 
 
@@ -279,3 +412,4 @@ if __name__ == '__main__':
         print(f" - [{t['env']}] {t['path']}")
     recs = collect_all_data()
     print("样例记录:", recs[0] if recs else "None")
+

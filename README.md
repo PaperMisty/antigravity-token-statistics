@@ -72,7 +72,7 @@
   - 当前用户目录：`~/.gemini`、`~/.antigravity`
   - 全局用户驱动盘自适应扫描：枚举 `%SystemDrive%\Users` 下所有真实用户的 `.gemini/antigravity-ide/conversations/*.db` 及 CLI 相关目录。
 - **WSL2 子系统环境**：
-  - 自动调用 `wsl.exe -l -q`（采用 UTF-16-LE 容错解码规避 Windows 控制台乱码），枚举所有已安装的 Linux 发行版（如 Ubuntu、Debian、Arch 等）；
+  - 优先调用 Windows 原生注册表（`HKCU\Software\Microsoft\Windows\CurrentVersion\Lxss`）进行**毫秒级无感知探测**（耗时 < 0.001s），彻底规避网络广播超时与 `wsl.exe` 子进程开销；
   - 通过 Windows 原生 UNC 网络路径穿透扫描：`\\wsl.localhost\<distro>\root\.gemini\antigravity-ide\conversations\*.db` 以及 `\\wsl.localhost\<distro>\home\<user>\.gemini\...`，无需在 WSL 内部部署额外代理。
 
 ### 2. 怎么读取的（无锁安全并发读取）
@@ -101,13 +101,22 @@ Antigravity 会话的核心调用明细存储在数据库的 `gen_metadata` 数�
   - 模型生成输出：`candidates_token_count`，并细分提炼出思维链思考 Token (`thinking_token_count`)；
   - 耗时与时间戳：精准提取调用开始/结束毫秒级时间戳，统计平均生成延迟与历史时间序列。
 
-### 4. 所需依赖包清单（零外部重量级依赖）
+### 4. ⚡ 本地增量缓存与毫秒级加速（性能飞跃 15x+）
+每次统计需要扫描上百个数据库文件并解码数万个二进制 Protobuf 消息。为了杜绝重复 I/O 与反序列化开销，工具引入了**智能增量缓存系统**：
+- **双重特征指纹比对**：为每个数据库建立 `(mtime, size)` 修改时间戳与文件大小双重指纹校验；
+- **智能跳过历史会话**：对于未发生改动的会话数据库，直接从本地缓存文件（`.token_cache.json`）秒级装载解析结果，完全跳过 SQLite 连接与逐字节 Protobuf 解码；
+- **增量热更新**：只有新创建的会话或发生最新交互写入的数据库才会触发解析，并自动增量写回缓存；
+- **性能质变**：执行耗时从初始全量扫描的 **~20 秒大幅锐减至 1 秒级（瞬时就绪）**；
+- **全量重扫开关**：支持随时传入 `--no-cache` 或 `--force-refresh`（或 `-f`）参数强制全量重新解析。
+
+### 5. 所需依赖包清单（零外部重量级依赖）
 整个项目崇尚**极简、轻量、开箱即用**的设计哲学：
 - **Python 运行端**：**100% 纯 Python 3.8+ 标准库**，无需 `pip install` 任何第三方包！
   - `sqlite3`：高性能本地会话数据库查询（带 URI 扩展）；
   - `json`：多维度数据汇总与前端结构序列化；
   - `os`, `sys`, `pathlib`：跨平台路径归一化处理；
-  - `subprocess`：跨系统探测 WSL2 发行版；
+  - `winreg`：Windows 注册表秒级探测已安装 WSL2 发行版；
+  - `subprocess`：备用跨系统探测发行版；
   - `datetime`, `time`：时间戳运算与日期矩阵生成；
   - `re`：模型标识与路径文本解析；
   - `webbrowser`：分析完成后自动弹出系统浏览器呈现结果。

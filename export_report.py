@@ -2032,12 +2032,13 @@ def render_html_dashboard(
 
 def export_all(
     base_dirs: Optional[Union[str, List[Union[str, Dict[str, str]]]]] = None,
-    output_dir: str = "."
+    output_dir: str = ".",
+    use_cache: bool = True
 ):
     """主执行函数：自动探测环境与工具类型、收集聚合数据并导出完整报告，并在浏览器中自动打开"""
     scanned_targets = discover_all_data_dirs() if base_dirs is None else None
 
-    records = collect_all_data(base_dirs)
+    records = collect_all_data(base_dirs, use_cache=use_cache)
     if not records:
         print("未找到任何 Token 记录！")
         return
@@ -2155,7 +2156,10 @@ def export_all(
 
 
 if __name__ == "__main__":
-    export_all()
+    force_refresh = any(arg in sys.argv for arg in ["--no-cache", "--force-refresh", "-f"])
+    if force_refresh:
+        print("[提示] 收到强制刷新参数，将跳过本地增量缓存进行全量重新解析...")
+    export_all(use_cache=not force_refresh)
     # 如果处于交互式控制台则提示按回车退出
     if sys.stdin.isatty():
         try:

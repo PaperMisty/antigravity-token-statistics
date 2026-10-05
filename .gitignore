@@ -35,6 +35,8 @@ venv.bak/
 .env.*
 *.csv
 *.json
+.token_cache.json
+.token_cache.json.tmp
 *.sqlite
 *.sqlite3
 *.db
