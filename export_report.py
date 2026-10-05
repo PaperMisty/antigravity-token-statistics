@@ -874,21 +874,37 @@ def render_html_dashboard(
             border: 1px solid #334155;
         }}
 
-        /* 图表网格 */
-        .charts-grid {{
+        /* 第一层对比网格 (左侧环形图 + 右侧贡献热力图) */
+        .top-row-grid {{
             display: grid;
             grid-template-columns: 360px 1fr;
             gap: 20px;
             margin-bottom: 24px;
+            align-items: stretch;
         }}
-        @media (max-width: 1100px) {{
-            .charts-grid {{ grid-template-columns: 1fr; }}
+        @media (max-width: 1200px) {{
+            .top-row-grid {{ grid-template-columns: 1fr; }}
+        }}
+        .top-row-grid > .card-container {{
+            margin-bottom: 0;
+            display: flex;
+            flex-direction: column;
+        }}
+        .doughnut-wrap {{
+            position: relative;
+            flex: 1;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            min-height: 220px;
+            max-height: 260px;
         }}
 
-        /* 走势图高度缩短至约 70% */
+        /* 走势图通栏拉长容器 */
         .daily-chart-wrap {{
             position: relative;
-            max-height: 220px;
+            height: 240px;
+            width: 100%;
         }}
 
         /* 表格样式 */
@@ -1183,50 +1199,53 @@ def render_html_dashboard(
         </div>
     </div>
 
-    <!-- GitHub 风格年度贡献热力图 (Heatmap) -->
-    <div class="card-container heatmap-card">
-        <div class="card-header-bar">
-            <div class="card-title">🔥 Token 使用贡献热力图 (GitHub Heatmap 风格)</div>
-            <!-- 年份筛选器 -->
-            <div class="filter-group">
-                <span class="filter-label">年份筛选:</span>
-                <div class="date-pills" id="yearPillsContainer">
-                    <!-- 由 JS 动态填充年份 -->
-                </div>
+    <!-- 第一层并排网格：左侧各模型环形图 + 右侧年度贡献热力图 -->
+    <div class="top-row-grid">
+        <!-- 各模型占比环形图 -->
+        <div class="card-container">
+            <div class="card-header-bar">
+                <div class="card-title">🍩 各模型 Token 消耗对比</div>
+            </div>
+            <div class="doughnut-wrap">
+                <canvas id="modelTokenChart"></canvas>
             </div>
         </div>
-        <div class="heatmap-scroll-wrap">
-            <svg id="heatmapSvg" class="heatmap-svg" width="840" height="135"></svg>
-        </div>
-        <div class="heatmap-legend">
-            <span>少 (Less)</span>
-            <div class="legend-cell" style="background: var(--heat-l0);"></div>
-            <div class="legend-cell" style="background: var(--heat-l1);"></div>
-            <div class="legend-cell" style="background: var(--heat-l2);"></div>
-            <div class="legend-cell" style="background: var(--heat-l3);"></div>
-            <div class="legend-cell" style="background: var(--heat-l4);"></div>
-            <span>多 (More)</span>
+
+        <!-- GitHub 风格年度贡献热力图 (Heatmap) -->
+        <div class="card-container heatmap-card">
+            <div class="card-header-bar">
+                <div class="card-title">🔥 Token 使用贡献热力图 (GitHub Heatmap 风格)</div>
+                <!-- 年份筛选器 -->
+                <div class="filter-group">
+                    <span class="filter-label">年份筛选:</span>
+                    <div class="date-pills" id="yearPillsContainer">
+                        <!-- 由 JS 动态填充年份 -->
+                    </div>
+                </div>
+            </div>
+            <div class="heatmap-scroll-wrap">
+                <svg id="heatmapSvg" class="heatmap-svg" width="840" height="135"></svg>
+            </div>
+            <div class="heatmap-legend">
+                <span>少 (Less)</span>
+                <div class="legend-cell" style="background: var(--heat-l0);"></div>
+                <div class="legend-cell" style="background: var(--heat-l1);"></div>
+                <div class="legend-cell" style="background: var(--heat-l2);"></div>
+                <div class="legend-cell" style="background: var(--heat-l3);"></div>
+                <div class="legend-cell" style="background: var(--heat-l4);"></div>
+                <span>多 (More)</span>
+            </div>
         </div>
     </div>
 
     <!-- 浮动 Tooltip -->
     <div id="heatmapTooltip" class="heatmap-tooltip"></div>
 
-    <!-- 图表网格 -->
-    <div class="charts-grid">
-        <!-- 各模型占比环形图 -->
-        <div class="card-container">
-            <div class="card-header-bar">
-                <div class="card-title">各模型 Token 消耗对比</div>
-            </div>
-            <canvas id="modelTokenChart" height="230"></canvas>
+    <!-- 第二层全宽卡片：每日 Token 消耗走势与细分统计 (横向拉长展开) -->
+    <div class="card-container">
+        <div class="card-header-bar">
+            <div class="card-title">📈 每日 Token 消耗走势与细分统计</div>
         </div>
-
-        <!-- 每日 Token 消耗走势 (带筛选栏与求和统计项目栏，高度缩小至约70%) -->
-        <div class="card-container">
-            <div class="card-header-bar">
-                <div class="card-title">📈 每日 Token 消耗走势与细分统计</div>
-            </div>
 
             <!-- ① 筛选工具栏: 2 个筛选栏 (日期范围 + 模型多选) -->
             <div class="filter-toolbar">
@@ -1298,12 +1317,11 @@ def render_html_dashboard(
                 </div>
             </div>
 
-            <!-- 堆叠柱状图 (高度设为约70%) -->
+            <!-- 堆叠柱状图 (全宽通栏拉长) -->
             <div class="daily-chart-wrap">
-                <canvas id="dailyTrendChart" height="150"></canvas>
+                <canvas id="dailyTrendChart"></canvas>
             </div>
         </div>
-    </div>
 
     <!-- 运行环境分布概览 -->
     <div class="card-container">
@@ -1602,15 +1620,23 @@ def render_html_dashboard(
         function renderHeatmap() {{
             const clientData = STATS_BY_CLIENT[currentClient] || STATS_BY_CLIENT['ALL'];
             const svg = document.getElementById('heatmapSvg');
+            if (!svg || !clientData || !clientData.daily || clientData.daily.length === 0) return;
             svg.innerHTML = "";
 
-            // 构建每日 Token 映射
+            // 若尚未选定年份，默认使用最新数据所在年份
+            if (!currentYear) {{
+                const dates = clientData.daily.map(d => d.date);
+                currentYear = dates.length > 0 ? dates[dates.length - 1].slice(0, 4) : new Date().getFullYear().toString();
+            }}
+
+            // 构建每日 Token 映射字典
             const dateMap = {{}};
             clientData.daily.forEach(d => {{
                 dateMap[d.date] = d;
             }});
 
             const yr = parseInt(currentYear, 10);
+            if (isNaN(yr)) return;
             const startDate = new Date(yr, 0, 1);
             const endDate = new Date(yr, 11, 31);
 
@@ -1686,7 +1712,10 @@ def render_html_dashboard(
                     lastMonth = m;
                 }}
 
-                const dateStr = cur.toISOString().slice(0, 10);
+                const curY = cur.getFullYear();
+                const curM = String(cur.getMonth() + 1).padStart(2, '0');
+                const curD = String(cur.getDate()).padStart(2, '0');
+                const dateStr = `${{curY}}-${{curM}}-${{curD}}`;
                 const dData = dateMap[dateStr];
                 const tokens = dData ? dData.total_tokens : 0;
                 const calls = dData ? dData.calls : 0;
@@ -1766,6 +1795,8 @@ def render_html_dashboard(
                     }},
                     options: {{
                         responsive: true,
+                        maintainAspectRatio: false,
+                        cutout: '62%',
                         plugins: {{
                             legend: {{
                                 position: 'bottom',
@@ -1989,8 +2020,8 @@ def render_html_dashboard(
         // 12. 页面就绪入口
         window.addEventListener('DOMContentLoaded', () => {{
             initTabBadges();
-            setTheme(currentTheme);
             applyClientData();
+            setTheme(currentTheme);
         }});
     </script>
 </body>
