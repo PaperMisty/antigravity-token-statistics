@@ -1,5 +1,9 @@
 # 📊 Antigravity Token 统计与多维度可视化分析器
 
+<p align="center">
+  <b>简体中文</b> | <a href="README_EN.md">English</a>
+</p>
+
 一个专为 **Google Antigravity**（Antigravity IDE 与 Antigravity CLI）打造的高性能、轻量级 Token 消耗统计、深度分析与现代化交互式仪表盘工具。
 
 支持从本地会话数据库中高效提取全量模型调用元数据，提供模型分布、时间走势、年度贡献热力图、交互式 HTML 仪表盘与结构化 Markdown 报告在内的全方位数据洞察。
