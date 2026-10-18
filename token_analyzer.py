@@ -7,8 +7,15 @@ import os
 import sqlite3
 import subprocess
 import time
+import sys
 from typing import Any, Dict, List, Optional, Union
-from proto_decoder import extract_gen_metadata
+from proto_decoder import extract_gen_metadata, extract_timestamp_from_proto, normalize_model_name
+
+# 确保在 Windows 控制台下的 UTF-8 打印兼容
+try:
+    sys.stdout.reconfigure(encoding="utf-8")
+except Exception:
+    pass
 
 
 _WSL_DISTROS_CACHE: Optional[List[str]] = None
@@ -239,7 +246,40 @@ def parse_single_db(db_path: str, env: str = "windows") -> List[Dict[str, Any]]:
         except Exception:
             pass
 
-        # 读取 gen_metadata 表
+        # 1. 尝试提前从 steps 表提取每一步骤的时间戳映射 (精准对齐 idx)
+        step_timestamps: Dict[int, int] = {}
+        try:
+            cursor.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='steps';")
+            if cursor.fetchone():
+                cursor.execute("SELECT idx, metadata FROM steps WHERE metadata IS NOT NULL ORDER BY idx ASC;")
+                for s_idx, s_meta in cursor.fetchall():
+                    ts_val = extract_timestamp_from_proto(s_meta)
+                    if ts_val:
+                        step_timestamps[s_idx] = ts_val
+        except Exception:
+            pass
+
+        # 2. 尝试提取会话全局起始时间戳 (trajectory_metadata_blob)
+        session_ts: Optional[int] = None
+        try:
+            cursor.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='trajectory_metadata_blob';")
+            if cursor.fetchone():
+                cursor.execute("SELECT data FROM trajectory_metadata_blob WHERE id='main';")
+                row_blob = cursor.fetchone()
+                if row_blob and row_blob[0]:
+                    session_ts = extract_timestamp_from_proto(row_blob[0])
+        except Exception:
+            pass
+
+        # 3. 本地或 UNC 文件系统的修改时间作为终极兜底
+        file_ts: Optional[int] = None
+        try:
+            if os.path.exists(db_path):
+                file_ts = int(os.path.getmtime(db_path))
+        except Exception:
+            pass
+
+        # 读取 gen_metadata 表并组装记录
         cursor.execute("SELECT idx, data, size FROM gen_metadata ORDER BY idx ASC;")
         rows = cursor.fetchall()
         for idx, data_blob, size in rows:
@@ -247,6 +287,18 @@ def parse_single_db(db_path: str, env: str = "windows") -> List[Dict[str, Any]]:
                 continue
             item = extract_gen_metadata(data_blob)
             if item:
+                # 若 item 内部未直接解析出 timestamp (例如 CLI 数据库或新模型协议变动)，进行多级高精度兜底补全
+                if not item.get("timestamp"):
+                    if idx in step_timestamps:
+                        item["timestamp"] = step_timestamps[idx]
+                    elif step_timestamps:
+                        closest_idx = min(step_timestamps.keys(), key=lambda k: abs(k - idx))
+                        item["timestamp"] = step_timestamps[closest_idx]
+                    elif session_ts:
+                        item["timestamp"] = session_ts
+                    elif file_ts:
+                        item["timestamp"] = file_ts
+
                 item['db_file'] = db_filename
                 item['db_path'] = db_path
                 item['conv_id'] = conv_id
@@ -273,11 +325,11 @@ def load_token_cache(cache_file: str) -> Dict[str, Any]:
         try:
             with open(cache_file, "r", encoding="utf-8") as f:
                 data = json.load(f)
-                if isinstance(data, dict) and data.get("version") == 1 and "files" in data:
+                if isinstance(data, dict) and data.get("version") in (1, 2) and "files" in data:
                     return data
         except Exception:
             pass
-    return {"version": 1, "last_updated": 0, "files": {}}
+    return {"version": 2, "last_updated": 0, "files": {}}
 
 
 def save_token_cache(cache_file: str, cache_data: Dict[str, Any]) -> None:
@@ -348,11 +400,17 @@ def collect_all_data(
         except Exception:
             pass
 
-        # 检查是否命中增量缓存
+        # 检查是否命中增量缓存 (若缓存记录缺少 timestamp，则主动重新解析以彻底修复)
         cached_entry = cached_files.get(norm_key)
+        has_invalid_records = (
+            cached_entry
+            and "records" in cached_entry
+            and any(not r.get("timestamp") for r in cached_entry["records"])
+        )
         if (
             use_cache
             and cached_entry
+            and not has_invalid_records
             and abs(cached_entry.get("mtime", 0) - mtime) < 1e-4
             and cached_entry.get("size") == size
             and "records" in cached_entry
@@ -360,7 +418,7 @@ def collect_all_data(
             db_records = cached_entry["records"]
             cache_hit_count += 1
         else:
-            # 文件发生新增或变更，重新解析该数据库
+            # 文件发生新增、变更或需要时间戳自愈，重新解析该数据库
             db_records = parse_single_db(db_path, env=env)
             parsed_count += 1
             cache_modified = True
@@ -373,6 +431,8 @@ def collect_all_data(
                 }
 
         for r in db_records:
+            # 规范化模型展示名称，确保新老模型名称一致
+            r["model_name"] = normalize_model_name(r.get("model_name"), r.get("model_id"))
             dedup_key = (r.get("conv_id"), r.get("step_idx"))
             if dedup_key not in seen_steps:
                 seen_steps.add(dedup_key)
@@ -387,6 +447,7 @@ def collect_all_data(
 
     # 保存最新增量缓存
     if use_cache and cache_modified:
+        cache_data["version"] = 2
         cache_data["last_updated"] = time.time()
         save_token_cache(cache_file, cache_data)
 

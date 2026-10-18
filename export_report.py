@@ -23,6 +23,7 @@ try:
 except Exception:
     pass
 
+from proto_decoder import normalize_model_name
 from token_analyzer import collect_all_data, discover_all_data_dirs
 
 
@@ -218,8 +219,8 @@ def generate_multi_dimensional_stats(records: List[Dict[str, Any]]) -> Dict[str,
         cl_dict["response_tokens"] += rsp
         cl_dict["total_tokens"] += tok
 
-        # 模型聚合
-        m_key = r.get("model_name", "Unknown")
+        # 模型聚合 (统一规范化友好展示名称)
+        m_key = normalize_model_name(r.get("model_name"), r.get("model_id"))
         m_dict = model_stats[m_key]
         m_dict["model_name"] = m_key
         m_dict["model_id"] = r.get("model_id", "")
@@ -254,9 +255,10 @@ def generate_multi_dimensional_stats(records: List[Dict[str, Any]]) -> Dict[str,
             if not c_dict["last_time"] or ts > c_dict["last_time"]:
                 c_dict["last_time"] = ts
 
-        # 时间维度聚合
-        if ts:
-            dt = datetime.fromtimestamp(ts)
+        # 时间维度聚合 (带会话级时间戳兜底，确保日走势图与模型筛选100%全覆盖)
+        effective_ts = ts or c_dict.get("first_time") or c_dict.get("last_time")
+        if effective_ts:
+            dt = datetime.fromtimestamp(effective_ts)
             day_str = dt.strftime("%Y-%m-%d")
             month_str = dt.strftime("%Y-%m")
 

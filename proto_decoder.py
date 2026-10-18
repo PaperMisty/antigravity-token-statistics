@@ -111,6 +111,58 @@ def extract_prompt_breakdown(sub_f10: List[Tuple[int, str, Any]]) -> Dict[str, A
                             breakdown['chat_messages_tokens'] = sec_tokens
     return breakdown
 
+MODEL_ID_MAP = {
+    'gemini-default': 'Gemini 3.5 Flash (Medium)',
+    'gemini-3-flash-a': 'Gemini 3 Flash (Alpha)',
+    'gemini-3-flash-medium-a': 'Gemini 3 Flash Medium (Alpha)',
+    'gemini-3.6-flash': 'Gemini 3.6 Flash (Medium)',
+    'gemini-3.7-flash': 'Gemini 3.7 Flash (Medium)',
+    'gemini-3.8-flash': 'Gemini 3.8 Flash (Medium)',
+    'gemini-3.8-flash-n': 'Gemini 3.8 Flash (Medium)',
+    'gemini-3p7-flash-exp-d': 'Gemini 3.7 Flash Exp (Thinking)',
+    'gemini-4-argon-trial': 'Gemini 4 Argon (Trial)',
+    'claude-opus-4-6-thinking': 'Claude Opus 4.6 (Thinking)',
+    'claude-opus-5-5-medium': 'Claude Opus 5.5 (Medium)',
+    'claude-sonnet-5-5-medium': 'Claude Sonnet 5.5 (Medium)',
+}
+
+
+def normalize_model_name(model_name: Optional[str], model_id: Optional[str]) -> str:
+    """根据 model_id 和当前 model_name 规范化返回人类友好的模型展示名称"""
+    m_name = model_name or "Unknown"
+    m_id = model_id or "unknown"
+    if (m_name in ("Unknown", m_id) or m_name in MODEL_ID_MAP) and m_id != "unknown":
+        return MODEL_ID_MAP.get(m_id, MODEL_ID_MAP.get(m_name, m_name))
+    return m_name
+
+
+def extract_timestamp_from_proto(blob: Optional[bytes]) -> Optional[int]:
+    """从任意 protobuf 字节串中递归提取有效秒级时间戳 (1000000000 ~ 2000000000)"""
+    if not blob:
+        return None
+    try:
+        fields = parse_proto(blob)
+        # 1. 优先检查常见的时间戳字段 (Field 1, 6, 7, 8 内部的 varint)
+        for fn, wt, v in fields:
+            if fn in (1, 6, 7, 8) and wt == 'len_delimited' and isinstance(v, dict) and v.get('sub'):
+                for sfn, swt, sv in v['sub']:
+                    if sfn == 1 and swt == 'varint' and 1000000000 <= sv <= 2000000000:
+                        return sv
+        # 2. 检查顶层直接的 varint 时间戳
+        for fn, wt, v in fields:
+            if wt == 'varint' and 1000000000 <= v <= 2000000000:
+                return v
+        # 3. 递归遍历其他 len_delimited 子结构
+        for fn, wt, v in fields:
+            if wt == 'len_delimited' and isinstance(v, dict) and v.get('sub'):
+                res = extract_timestamp_from_proto(v.get('raw'))
+                if res:
+                    return res
+    except Exception:
+        pass
+    return None
+
+
 def extract_gen_metadata(data: bytes) -> Optional[Dict[str, Any]]:
     if not data:
         return None
@@ -185,22 +237,10 @@ def extract_gen_metadata(data: bytes) -> Optional[Dict[str, Any]]:
     if record['response_tokens'] == 0 and record['output_tokens'] > 0:
         record['response_tokens'] = max(0, record['output_tokens'] - record['thinking_tokens'])
     
-    # 计算总 token
-    # 总 Token = 未缓存输入 + 缓存读取 + 输出
+    # 计算总 token = 未缓存输入 + 缓存读取 + 输出
     record['total_tokens'] = record['input_tokens'] + record['cached_tokens'] + record['output_tokens']
 
-    # 统一模型名称展示
-    if record['model_name'] == 'Unknown' and record['model_id'] != 'unknown':
-        id_map = {
-            'gemini-default': 'Gemini 3.5 Flash (Medium)',
-            'gemini-3-flash-a': 'Gemini 3 Flash (Alpha)',
-            'gemini-3-flash-medium-a': 'Gemini 3 Flash Medium (Alpha)',
-            'gemini-3.6-flash': 'Gemini 3.6 Flash (Medium)',
-            'gemini-3.7-flash': 'Gemini 3.7 Flash (Medium)',
-            'gemini-3.8-flash': 'Gemini 3.8 Flash (Medium)',
-            'gemini-3p7-flash-exp-d': 'Gemini 3.7 Flash Exp (Thinking)',
-            'claude-opus-4-6-thinking': 'Claude Opus 4.6 (Thinking)',
-        }
-        record['model_name'] = id_map.get(record['model_id'], record['model_id'])
+    # 统一模型名称展示与新模型映射
+    record['model_name'] = normalize_model_name(record['model_name'], record['model_id'])
 
     return record
